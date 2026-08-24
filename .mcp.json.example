@@ -1,0 +1,15 @@
+{
+  "mcpServers": {
+    "goals": {
+      "type": "stdio",
+      "command": "python",
+      "args": ["/path/to/goals_mcp/goal_mcp.py"],
+      "env": {
+        "GOAL_OWNER": "myagent",
+        "GOAL_AGENTS": "myagent,researcher",
+        "GOAL_HUMANS": "bob,sue",
+        "GOAL_CODE_PROJECTS": "webapp,api"
+      }
+    }
+  }
+}

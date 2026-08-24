@@ -1,0 +1,10 @@
+{
+  "repos": {
+    "webapp": "/home/you/src/webapp",
+    "api": "/home/you/src/api"
+  },
+  "aliases": {
+    "frontend": "webapp",
+    "backend": "api"
+  }
+}

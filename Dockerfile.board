@@ -1,0 +1,18 @@
+# The board, containerised. Stdlib only, so there is nothing to pip install.
+#
+#   docker build -f Dockerfile.board -t goals-board .
+#   docker run --rm -p 8077:8077 -v "$PWD/goals.db:/data/goals.db" goals-board
+#
+# The volume is the whole integration: the MCP and the board read and write the
+# same file. Mount a db that already exists — the board does not create one.
+FROM python:3.12-slim
+
+WORKDIR /app
+COPY board_server.py .
+
+ENV GOAL_DB=/data/goals.db
+EXPOSE 8077
+
+# 0.0.0.0 because the port is published; set BOARD_PASS if you expose it beyond
+# your own machine, since auth is off when that variable is empty.
+CMD ["python", "board_server.py", "--port", "8077", "--host", "0.0.0.0"]

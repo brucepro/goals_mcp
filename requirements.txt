@@ -1,0 +1,10 @@
+# The MCP server itself needs only this.
+mcp>=1.0.0
+
+# conscience_agent.py only. Skip if you are not running the nag.
+pydantic-ai>=0.0.20
+openai>=1.0.0
+httpx>=0.27.0
+
+# Optional: only needed if you set GOAL_PG to use Postgres instead of SQLite.
+# psycopg[binary]>=3.1
