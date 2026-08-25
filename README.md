@@ -52,7 +52,7 @@ writes a plain text file. What you do with that file is up to you.
 
 ---
 
-## The bit worth stealing: goal *kinds*
+## Goal *kinds*
 
 Urgency is `priority × days_idle`. That formula quietly encodes a claim nobody
 made — **that only completable things count.**
