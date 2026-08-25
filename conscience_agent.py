@@ -68,8 +68,9 @@ def _rows(sql: str, params: tuple = ()) -> list[dict]:
 
     if not GOAL_DB.exists():
         raise GoalStoreUnavailable(
-            f"No goal database at {GOAL_DB}. Run `python seed.py`, or set GOAL_DB "
-            f"/ GOAL_PG to point at the store the MCP actually writes to."
+            f"No goal database at {GOAL_DB}. It is created on first connect — start the "
+            f"MCP server once, or set GOAL_DB / GOAL_PG to point at the store the MCP "
+            f"actually writes to."
         )
     import sqlite3
 

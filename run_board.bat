@@ -8,7 +8,7 @@ if "%BOARD_PORT%"=="" set BOARD_PORT=8077
 
 if not exist "%GOAL_DB%" (
   echo No database at %GOAL_DB%
-  echo Run:  python seed.py
+  echo It is created on first connect - start the MCP server once, or set GOAL_DB.
   exit /b 1
 )
 
