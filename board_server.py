@@ -361,7 +361,8 @@ function qMatch(id,text){
 
 async function api(a,b){const r=await fetch('/api/'+a,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(b||{})});return r.json()}
 async function load(){const r=await fetch('/api/state');S=await r.json();render();if(OPEN)renderDialog(OPEN)}
-function esc(s){return (s||'').replace(/[&<>]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]))}
+// Escapes quotes too, so this is safe in attribute context as well as text.
+function esc(s){return (s||'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))}
 function copyId(id,el,ev,kind){
   if(ev)ev.stopPropagation(); // sits inside a clickable card/goal row; don't also trigger its onclick
   // Copy "goal <uuid>" / "task <uuid>", not a bare id. A bare hex string means
@@ -443,7 +444,7 @@ function renderDialog(id){
   const t=S.tasks.find(x=>x.id===id);if(!t){dlg.close();OPEN=null;return}
   const opt=(a,v)=>a.map(x=>`<option ${x===v?'selected':''}>${x}</option>`).join('');
   document.getElementById('dlgbody').innerHTML=`
-    <label>Title</label><input id="e_title" value="${esc(t.title).replace(/"/g,'&quot;')}">
+    <label>Title</label><input id="e_title" value="${esc(t.title)}">
     <label>Detail</label><textarea id="e_detail" rows="3">${esc(t.detail||'')}</textarea>
     <div class="row">
       <div><label>Project</label><select id="e_project">${opt(S.projects,t.project)}</select></div>
@@ -573,15 +574,33 @@ class H(BaseHTTPRequestHandler):
             return self._send(200, json.dumps(api_state(), default=str))
         self._send(404, json.dumps({"error": "not found"}))
 
+    def _csrf_ok(self):
+        """Reject cross-site writes; auth does not cover these, so check Origin and require JSON."""
+        origin = self.headers.get("Origin")
+        if origin:
+            host = self.headers.get("Host", "")
+            if urlparse(origin).netloc != host:
+                return False
+        ctype = (self.headers.get("Content-Type") or "").split(";")[0].strip().lower()
+        return ctype == "application/json"
+
     def do_POST(self):
         if not self._auth_ok():
             return
-        p = urlparse(self.path).path.rsplit("/", 1)[-1]
-        n = int(self.headers.get("Content-Length") or 0)
-        d = json.loads(self.rfile.read(n) or b"{}")
-        fn = ROUTES.get(p)
+        if not self._csrf_ok():
+            return self._send(403, json.dumps(
+                {"ok": False, "error": "cross-site or non-JSON POST refused"}))
+        # Match the exact path, so /anything/delete does not reach api_delete.
+        p = urlparse(self.path).path
+        fn = ROUTES.get(p[5:]) if p.startswith("/api/") else None
         if not fn:
             return self._send(404, json.dumps({"error": "not found"}))
+        try:
+            # Parse inside the try, so a malformed body returns 400 instead of dropping.
+            n = int(self.headers.get("Content-Length") or 0)
+            d = json.loads(self.rfile.read(n) or b"{}")
+        except Exception as e:
+            return self._send(400, json.dumps({"ok": False, "error": f"bad request: {e}"}))
         try:
             return self._send(200, json.dumps(fn(d), default=str))
         except Exception as e:
