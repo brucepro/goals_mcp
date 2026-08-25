@@ -33,6 +33,8 @@ HEALTH_LOG = _conscience_dir / "goal_health.log"
 
 LLM_ENDPOINT = os.environ.get("LLM_ENDPOINT", "http://localhost:8080/v1")
 LLM_MODEL = os.environ.get("CONSCIENCE_MODEL", "local-model")
+# 0 suits a local endpoint that either answers or is down; hosted APIs rate-limit.
+LLM_MAX_RETRIES = int(os.environ.get("LLM_MAX_RETRIES", "0"))
 
 def setup_logging():
     LOG_FILE.parent.mkdir(parents=True, exist_ok=True)
@@ -293,9 +295,10 @@ Rules for output:
     )
     openai_client = AsyncOpenAI(
         base_url=endpoint,
-        api_key="not-needed",
+        # "not-needed" keeps local llama.cpp working; hosted endpoints need a real key.
+        api_key=os.environ.get("LLM_API_KEY", "not-needed"),
         http_client=http_client,
-        max_retries=0,
+        max_retries=LLM_MAX_RETRIES,
     )
 
     llm_model = OpenAIChatModel(

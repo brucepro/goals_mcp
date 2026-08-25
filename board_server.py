@@ -201,11 +201,12 @@ def api_update(d):
 
         if d.get("status") == "done" and before.get("status") != "done" and before.get("on_done_create"):
             nid = str(uuid.uuid4())
-            c.execute("""INSERT INTO tasks (id, project, title, detail, status, owner, source)
-                         VALUES (?,?,?,?,'todo',?,'auto')""",
+            # goal_id must carry: the conscience joins on it, and nobody typed this card.
+            c.execute("""INSERT INTO tasks (id, project, title, detail, status, owner, source, goal_id)
+                         VALUES (?,?,?,?,'todo',?,'auto',?)""",
                       (nid, before["project"], before["on_done_create"],
                        f"Auto-created when '{before['title']}' was completed.",
-                       before["owner"]))
+                       before["owner"], before["goal_id"]))
             _event(c, nid, "board", "created", None, before["on_done_create"])
             return {"ok": True, "spawned": before["on_done_create"]}
     return {"ok": True}
@@ -248,7 +249,16 @@ PAGE = r"""<!doctype html><html><head><meta charset="utf-8">
 <title>Goals MCP Project Board</title><meta name="viewport" content="width=device-width,initial-scale=1">
 <style>
 :root{--bg:#0f1115;--panel:#171a21;--panel2:#1e222b;--line:#2a2f3a;--tx:#dfe3ea;--dim:#8b93a3;
-      --agent:#4aa3df;--human:#d98a4a;--accent:#5ad18a;--warn:#e0685f;--work:#b98ad9}
+      --agent:#4aa3df;--human:#d98a4a;--accent:#5ad18a;--warn:#e0685f;--work:#b98ad9;
+      --input:#12151b;--pillon:#1b2a38;--pillontx:#fff;--shadow:rgba(0,0,0,.4);
+      --primbg:#1b3a2a;--primtx:#bff5d6;--dragbg:#141d18;--blkline:#4a2a2a;
+      --cmline:#2a4a38;--wkline:#3d2a4a;--duetx:#e8c56a;--dueline:#4a412a;--backdrop:#000b}
+/* Light is re-picked for contrast on a pale background, not inverted from the dark set. */
+html[data-theme=light]{--bg:#f3f5f9;--panel:#fff;--panel2:#eaeef5;--line:#ccd4e0;--tx:#1b2230;
+      --dim:#5a6474;--agent:#1a6ba8;--human:#9c5411;--accent:#177f4a;--warn:#b3261e;--work:#6b3fa0;
+      --input:#fff;--pillon:#dce9f6;--pillontx:#0d3d63;--shadow:rgba(16,24,40,.14);
+      --primbg:#d7efe1;--primtx:#0d5232;--dragbg:#e7f3ec;--blkline:#e3aca6;
+      --cmline:#a4d5bb;--wkline:#c9b2e4;--duetx:#7d5a0d;--dueline:#e2cf99;--backdrop:rgba(16,24,40,.45)}
 *{box-sizing:border-box}
 body{margin:0;background:var(--bg);color:var(--tx);font:14px/1.45 -apple-system,Segoe UI,Roboto,sans-serif}
 header{display:flex;gap:10px;align-items:center;padding:10px 14px;background:var(--panel);
@@ -256,12 +266,14 @@ header{display:flex;gap:10px;align-items:center;padding:10px 14px;background:var
 h1{font-size:15px;margin:0;font-weight:600}
 .pill{background:var(--panel2);border:1px solid var(--line);color:var(--dim);border-radius:999px;
       padding:3px 10px;cursor:pointer;font-size:12px;user-select:none}
-.pill.on{color:#fff;border-color:var(--agent);background:#1b2a38}
+.pill.on{color:var(--pillontx);border-color:var(--agent);background:var(--pillon)}
+.pill.icon{font-size:15px;line-height:1;padding:4px 9px}
+.pill.icon:hover{border-color:var(--agent);color:var(--tx)}
 button{background:var(--panel2);color:var(--tx);border:1px solid var(--line);border-radius:6px;
        padding:6px 11px;cursor:pointer;font-size:13px}
 button:hover{border-color:var(--agent)}
-button.primary{background:#1b3a2a;border-color:var(--accent);color:#bff5d6}
-input,select,textarea{background:#12151b;color:var(--tx);border:1px solid var(--line);
+button.primary{background:var(--primbg);border-color:var(--accent);color:var(--primtx)}
+input,select,textarea{background:var(--input);color:var(--tx);border:1px solid var(--line);
        border-radius:6px;padding:7px 9px;font:inherit;width:100%}
 .lane{padding:6px 14px 0}
 .lane h2{font-size:11px;text-transform:uppercase;letter-spacing:1px;color:var(--dim);
@@ -271,17 +283,17 @@ input,select,textarea{background:#12151b;color:var(--tx);border:1px solid var(--
 .col{background:var(--panel);border:1px solid var(--line);border-radius:10px;min-height:70px;padding:8px}
 .col h3{font-size:11px;text-transform:uppercase;letter-spacing:.8px;color:var(--dim);
         margin:2px 0 8px;display:flex;justify-content:space-between}
-.col.drag{border-color:var(--accent);background:#141d18}
+.col.drag{border-color:var(--accent);background:var(--dragbg)}
 .card{background:var(--panel2);border:1px solid var(--line);border-left-width:3px;border-radius:8px;
       padding:8px 9px;margin-bottom:7px;cursor:grab}
 .card.own-agent{border-left-color:var(--agent)} .card.own-human{border-left-color:var(--human)}
 .card .t{font-weight:500;margin-bottom:4px;word-wrap:break-word}
 .meta{display:flex;gap:5px;flex-wrap:wrap;align-items:center;font-size:11px;color:var(--dim)}
-.tag{background:#12151b;border:1px solid var(--line);border-radius:4px;padding:1px 6px}
-.tag.blk{color:var(--warn);border-color:#4a2a2a}
-.tag.cm{color:var(--accent);border-color:#2a4a38}
-.tag.wk{color:var(--work);border-color:#3d2a4a}
-.tag.due{color:#e8c56a;border-color:#4a412a}
+.tag{background:var(--input);border:1px solid var(--line);border-radius:4px;padding:1px 6px}
+.tag.blk{color:var(--warn);border-color:var(--blkline)}
+.tag.cm{color:var(--accent);border-color:var(--cmline)}
+.tag.wk{color:var(--work);border-color:var(--wkline)}
+.tag.due{color:var(--duetx);border-color:var(--dueline)}
 .det{color:var(--dim);font-size:12px;margin:3px 0 5px;white-space:pre-wrap}
 .x{margin-left:auto;color:var(--dim);cursor:pointer;padding:0 3px}.x:hover{color:var(--warn)}
 #goals{padding:14px}
@@ -290,11 +302,11 @@ input,select,textarea{background:#12151b;color:var(--tx);border:1px solid var(--
 .goal .n{color:var(--dim);font-size:12px;margin-top:4px}
 dialog{background:var(--panel);color:var(--tx);border:1px solid var(--line);border-radius:12px;
        padding:16px;width:min(640px,94vw);max-height:90vh}
-dialog::backdrop{background:#000b}
+dialog::backdrop{background:var(--backdrop)}
 label{display:block;font-size:11px;color:var(--dim);margin:8px 0 3px;text-transform:uppercase;letter-spacing:.5px}
 .row{display:flex;gap:8px}.row>*{flex:1}
 .thread{max-height:230px;overflow:auto;margin-top:6px;border-top:1px solid var(--line);padding-top:8px}
-.cm{background:#12151b;border:1px solid var(--line);border-left:3px solid var(--line);
+.cm{background:var(--input);border:1px solid var(--line);border-left:3px solid var(--line);
     border-radius:6px;padding:7px 9px;margin-bottom:6px;font-size:13px}
 .cm.work{border-left-color:var(--work)} .cm.feedback{border-left-color:var(--human)}
 .cm.note{border-left-color:var(--agent)}
@@ -302,13 +314,28 @@ label{display:block;font-size:11px;color:var(--dim);margin:8px 0 3px;text-transf
 .cm .b{white-space:pre-wrap}
 .ev{font-size:11px;color:var(--dim);padding:2px 0}
 @media(max-width:900px){.cols{grid-template-columns:1fr}}
-</style></head><body>
+</style>
+<script>
+(function(){var t=localStorage.getItem('board-theme');
+ if(!t)t=window.matchMedia&&window.matchMedia('(prefers-color-scheme: light)').matches?'light':'dark';
+ document.documentElement.setAttribute('data-theme',t);
+ document.addEventListener('DOMContentLoaded',function(){paintTheme(t);});})();
+function paintTheme(t){var e=document.getElementById('themetog');if(!e)return;
+ var to=t==='light'?'dark':'light';
+ e.textContent=to==='dark'?'☾':'☀';
+ e.title='Switch to '+to+' mode';e.setAttribute('aria-label',e.title);}
+function toggleTheme(){var h=document.documentElement,
+ t=h.getAttribute('data-theme')==='light'?'dark':'light';
+ h.setAttribute('data-theme',t);localStorage.setItem('board-theme',t);paintTheme(t);}
+</script></head><body>
 <header>
   <h1>Board</h1>
   <input id="q" oninput="setQ(this.value)" placeholder="search id or title…"
-    style="background:#12151b;border:1px solid var(--line);border-radius:4px;padding:4px 8px;color:inherit;font-size:12px;width:200px">
+    style="background:var(--input);border:1px solid var(--line);border-radius:4px;padding:4px 8px;color:inherit;font-size:12px;width:200px">
   <span id="filters" style="display:flex;gap:5px;flex-wrap:wrap"></span>
   <span style="margin-left:auto;display:flex;gap:7px;align-items:center">
+    <span class="pill icon" id="themetog" role="button" tabindex="0"
+      onclick="toggleTheme()" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();toggleTheme();}">☾</span>
     <span class="pill" id="lanetog" onclick="toggleLanes()">swimlanes</span>
     <span class="pill" id="donetog" onclick="toggleDone()">hide done</span>
     <button onclick="openNew()" class="primary">+ Task</button>
@@ -431,7 +458,7 @@ function renderDialog(id){
     <div style="display:flex;gap:8px;margin:14px 0 4px">
       <button class="primary" onclick="saveTask('${t.id}')">Save</button>
       <button onclick="dlg.close();OPEN=null">Close</button>
-      <button style="margin-left:auto;border-color:#4a2a2a" onclick="delTask('${t.id}')">Delete task</button>
+      <button style="margin-left:auto;border-color:var(--blkline)" onclick="delTask('${t.id}')">Delete task</button>
     </div>
 
     <label>Subtasks ${t.sub_total?`(${t.sub_done}/${t.sub_total}${t.sub_blocked?', '+t.sub_blocked+' blocked':''})`:''}</label>

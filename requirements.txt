@@ -1,5 +1,5 @@
-# The MCP server itself needs only this.
-mcp>=1.0.0
+# Upper bound is load-bearing: mcp 2.x removed the decorators this server uses.
+mcp>=1.0.0,<2
 
 # conscience_agent.py only. Skip if you are not running the nag.
 pydantic-ai>=0.0.20

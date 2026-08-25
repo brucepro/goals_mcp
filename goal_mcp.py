@@ -271,6 +271,7 @@ def get_db():
         )
     DB_PATH.parent.mkdir(parents=True, exist_ok=True)
     conn = sqlite3.connect(str(DB_PATH))
+    conn.isolation_level = None   # autocommit, matching _PgConn; without it writes roll back on close
     conn.row_factory = sqlite3.Row
     conn.executescript(SCHEMA)
 
@@ -912,10 +913,6 @@ TASK_STATUSES = ["todo", "doing", "blocked", "done"]
 BOARD_DETAIL_CHARS = 400
 
 
-def _require_pg():
-    return
-
-
 def _resolve_task_id(db, task_id: str) -> str:
     row = db.execute("SELECT id FROM tasks WHERE id = ?", (task_id,)).fetchone()
     if row:
@@ -933,7 +930,6 @@ def _resolve_task_id(db, task_id: str) -> str:
 
 
 def _board(db, args: dict) -> dict:
-    _require_pg()
     where, params = [], []
     if args.get("project"):
         where.append("project = ?")
@@ -1020,7 +1016,6 @@ def _board(db, args: dict) -> dict:
 
 
 def _task_get(db, args: dict) -> dict:
-    _require_pg()
     tid = _resolve_task_id(db, args["task_id"])
     task = dict(db.execute("SELECT * FROM tasks WHERE id = ?", (tid,)).fetchone())
     task["subtasks"] = [
@@ -1057,7 +1052,6 @@ def _task_get(db, args: dict) -> dict:
 
 
 def _task_delete(db, args: dict) -> dict:
-    _require_pg()
     tid = _resolve_task_id(db, args["task_id"])
     task = dict(db.execute("SELECT id, title FROM tasks WHERE id = ?", (tid,)).fetchone())
 
@@ -1086,8 +1080,10 @@ def _task_delete(db, args: dict) -> dict:
                 logger.warning("delete step failed for %s: %s", i[:8], e)
     db.commit()
 
+    # ANY(?) is Postgres-only; the DELETE above already committed, so it failed a successful delete.
+    placeholders = ",".join("?" for _ in ids)
     still = db.execute(
-        "SELECT count(*) AS n FROM tasks WHERE id = ANY(?)", (ids,)
+        f"SELECT count(*) AS n FROM tasks WHERE id IN ({placeholders})", tuple(ids)
     ).fetchone()["n"]
     if still:
         return {"error": f"delete reported success but {still} row(s) survived", "ids": ids}
@@ -1095,7 +1091,6 @@ def _task_delete(db, args: dict) -> dict:
 
 
 def _task_create(db, args: dict) -> dict:
-    _require_pg()
     tid = str(uuid.uuid4())
     status = args.get("status", "todo")
     if status not in TASK_STATUSES:
@@ -1267,7 +1262,6 @@ def _unshippable_close_warning(project: str, title: str, detail: str, comments: 
 
 
 def _task_update(db, args: dict) -> dict:
-    _require_pg()
     raw_ids = args.get("task_id")
     if isinstance(raw_ids, (list, tuple)):
         results, failed = [], []
@@ -1380,7 +1374,6 @@ def _task_update(db, args: dict) -> dict:
 
 
 def _task_note(db, args: dict) -> dict:
-    _require_pg()
     kind = args.get("kind", "note")
     if kind not in ("note", "feedback", "work"):
         return {"error": "kind must be note, feedback or work"}
@@ -1688,7 +1681,7 @@ def _get_goal(db, args: dict) -> dict:
     ).fetchall()
 
     blocked_by_info = None
-    if row.get("blocked_by"):
+    if row["blocked_by"]:   # sqlite3.Row has no .get(); fires only when a blocker exists
         blocker = db.execute(
             "SELECT id, description, status FROM goals WHERE id = ?",
             (row["blocked_by"],)
@@ -1918,7 +1911,6 @@ def _age(ts):
 
 
 def _check_out_card(db, args: dict) -> dict:
-    _require_pg()
     _ensure_checkout_table(db)
     raw = args.get("task_id")
     if not raw:
@@ -2010,7 +2002,6 @@ def _check_out_card(db, args: dict) -> dict:
 
 
 def _check_in_card(db, args: dict) -> dict:
-    _require_pg()
     _ensure_checkout_table(db)
     raw = args.get("task_id")
     status = (args.get("status") or "").lower()

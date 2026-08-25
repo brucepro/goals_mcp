@@ -107,9 +107,8 @@ Two rules the guards follow, both learned the hard way:
 > path still exists would fire on every correct "remove X" card.
 
 > **A guard that is silently green is worse — it has no symptom at all.** Every
-> guard here is tested against a canary containing the thing it must catch.
-> `python scan_private.py --selftest` does exactly this, and it caught a dead
-> pattern the day it was written.
+> guard here is tested against a canary containing the thing it must catch, so a
+> guard that has stopped firing shows up as a failing test rather than as silence.
 
 ---
 
@@ -117,10 +116,16 @@ Two rules the guards follow, both learned the hard way:
 
 ```bash
 git clone https://github.com/brucepro/goals_mcp && cd goals_mcp
+python -m venv .venv
+.venv\Scripts\activate          # Windows
+source .venv/bin/activate       # macOS / Linux
 pip install -r requirements.txt
-python seed.py          # creates goals.db with one sample goal and one card
-python test_smoke.py    # 23 checks, all offline
 ```
+
+Use a virtualenv. `requirements.txt` pins `mcp<2` because 2.x removed the
+decorators this server is built on, and a system Python that already carries a
+different `mcp` will fail at import. The database is created on first connect —
+there is nothing to seed.
 
 Add to `.mcp.json` (see `.mcp.json.example`):
 
@@ -129,7 +134,7 @@ Add to `.mcp.json` (see `.mcp.json.example`):
   "mcpServers": {
     "goals": {
       "type": "stdio",
-      "command": "python",
+      "command": "/abs/path/to/goals_mcp/.venv/bin/python",
       "args": ["/path/to/goals_mcp/goal_mcp.py"],
       "env": {
         "GOAL_OWNER": "myagent",
@@ -185,6 +190,17 @@ first. Point `CONSCIENCE_NAG_PATH` wherever you like.
 Needs any OpenAI-compatible endpoint (`LLM_ENDPOINT`) — llama.cpp, Ollama, vLLM,
 LM Studio, or a hosted API. A small local model is genuinely fine here.
 
+| Variable | Default | Meaning |
+|---|---|---|
+| `LLM_ENDPOINT` | `http://localhost:8080/v1` | OpenAI-compatible base URL |
+| `CONSCIENCE_MODEL` | `local-model` | Model name the endpoint expects |
+| `LLM_API_KEY` | `not-needed` | Leave unset for a local server; required by hosted APIs |
+| `LLM_MAX_RETRIES` | `0` | Raise for hosted endpoints that rate-limit |
+| `CONSCIENCE_NAG_PATH` | `conscience/nag_output.txt` | Where the nags are written |
+
+A local run writes a nag every couple of hours from cron and can take minutes on
+a small model, so keep the schedule longer than a run.
+
 **A conscience only works if the agent still trusts it.** Every false alarm —
 firing on something already handled, or already known to be blocked — teaches the
 agent to tune out the next one. So goals owned by someone else score **zero**
@@ -194,16 +210,6 @@ See **[HUD.md](HUD.md)** for wiring the nag into Claude Code, and
 **[AGENTS.md](AGENTS.md)** for what an agent should know before using these tools.
 
 ---
-
-## Before you publish a fork
-
-```bash
-python scan_private.py            # refuses if anything private is in the tree
-python scan_private.py --selftest # proves the scanner still fires
-```
-
-Tune `PATTERNS` in that file to your own names first. It ships configured for
-someone else's.
 
 ## Support
 

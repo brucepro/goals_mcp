@@ -2,8 +2,11 @@
   "mcpServers": {
     "goals": {
       "type": "stdio",
-      "command": "python",
-      "args": ["/path/to/goals_mcp/goal_mcp.py"],
+      "command": "/abs/path/to/goals_mcp/.venv/bin/python",
+      "//": "Absolute venv path on purpose: bare 'python' picks up system Python, which may carry an mcp version this server does not support. On Windows use .venv/Scripts/python.exe",
+      "args": [
+        "/path/to/goals_mcp/goal_mcp.py"
+      ],
       "env": {
         "GOAL_OWNER": "myagent",
         "GOAL_AGENTS": "myagent,researcher",
