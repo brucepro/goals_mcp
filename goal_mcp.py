@@ -533,7 +533,8 @@ TOOLS = [
                         "deadline forever."
                     ),
                 },
-                "priority": {"type": "number", "description": "0.0-1.0, how important (default 0.5)"},
+                # An open-ended weight, not 0-1; bounding it breaks the smoke suite.
+                "priority": {"type": "number", "description": "How important, default 0.5. An open-ended weight, NOT a 0-1 score: urgency is priority * days_idle * decay_rate, so it scales linearly and is not capped. 0.5 is ordinary, 1.0 is high; larger values are accepted and used as-is, so a goal at 4 outranks a goal at 0.5 permanently, not just initially. Keep goals on one consistent scale or the ranking stops meaning anything. To make a goal nag FASTER without outranking everything, raise decay_rate instead."},
                 "category": {"type": "string", "description": "business, creative, technical, personal, embodiment (default general)"},
                 "decay_rate": {"type": "number", "description": "How fast urgency grows. 1.0=normal, 2.0=nags twice as fast (default 1.0)"},
                 "success_criteria": {"type": "string", "description": "How you know this goal is done"},
